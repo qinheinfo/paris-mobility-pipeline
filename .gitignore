@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secrets
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local data and Spark checkpoints
+data/
+checkpoints/
+warehouse/
