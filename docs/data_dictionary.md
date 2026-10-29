@@ -19,7 +19,7 @@ Endpoint: https://velib-metropole-opendata.smovengo.cloud/opendata/Velib_Metropo
 | is_installed | integer (0/1) | 1 | Whether the station is installed and in service |
 | is_renting | integer (0/1) | 1 | Whether bikes can currently be rented from this station |
 | is_returning | integer (0/1) | 1 | Whether bikes can currently be returned to this station |
-| last_reported | integer (Unix timestamp) | 1793211473 | Time of the station's last status update (event time) |
+| last_reported | integer (Unix timestamp) | 1793211473 | Time of the station's last status update (event time). Observed: not always updated when bike counts change; not reliable as a sole dedup key. |
 | stationCode | string | "42301" | Public-facing station code used by Vélib'; stored as a string identifier |
 | station_opening_hours | null | null | Opening hours; null in observed data (likely unused) |
 
