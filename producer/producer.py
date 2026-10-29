@@ -41,5 +41,8 @@ def main():
 
 if __name__ == "__main__":
     while True:
-        main()
+        try:
+            main()
+        except Exception as e:
+            print(f"{datetime.now()}  ERROR: {e}")
         time.sleep(POLL_INTERVAL_SECONDS)
