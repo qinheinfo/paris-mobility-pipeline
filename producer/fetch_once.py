@@ -1,4 +1,6 @@
 import requests
+import time
+
 from datetime import datetime
 
 STATUS_URL = "https://velib-metropole-opendata.smovengo.cloud/opendata/Velib_Metropole/station_status.json"
@@ -19,7 +21,10 @@ def main():
             print(f"E-bikes available: {station['num_bikes_available_types'][1]['ebike']}")
             print(f"Docks available: {station['num_docks_available']}")
             print(f"Last reported: {datetime.fromtimestamp(station['last_reported'])}")
+            print(f"Fetched at: {datetime.now()}")
             break
 
 if __name__ == "__main__":
-    main()
+    while True:
+        main()
+        time.sleep(5)
