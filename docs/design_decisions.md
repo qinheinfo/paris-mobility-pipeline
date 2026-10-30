@@ -31,3 +31,13 @@
 ## 4. Store all timestamps in UTC
 
 **Why:** Paris switches between UTC+1 and UTC+2. UTC avoids duplicated or missing hours at daylight-saving changes.
+
+## 5. Compute time-based averages from bronze, not silver
+
+**Why:** Silver keeps only change events, so each row no longer represents one minute. Averaging silver rows would give a 1-minute state and a 50-minute state the same weight. Bronze has one snapshot per minute, so a simple average is time-weighted.
+
+## 6. Exclude out-of-service periods from availability metrics
+
+**Finding:** 17 stations had zero bikes in every sample, but 15 of them had `is_renting = 0` throughout, meaning they were out of service, not in high demand.
+
+**Decision:** Availability metrics (average bikes, empty-station rate) only use rows where `is_renting = 1`. Only 2 of the 17 stations were genuinely empty while in service.
