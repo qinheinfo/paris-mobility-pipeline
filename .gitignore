@@ -17,3 +17,6 @@ venv/
 data/
 checkpoints/
 warehouse/
+
+dbt/target/
+dbt/logs/

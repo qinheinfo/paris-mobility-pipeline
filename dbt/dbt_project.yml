@@ -1,0 +1,10 @@
+name: velib
+version: "1.0.0"
+profile: velib
+
+model-paths: ["models"]
+
+models:
+  velib:
+    +materialized: table
+    +file_format: iceberg
