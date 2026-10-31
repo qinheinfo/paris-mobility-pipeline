@@ -20,3 +20,4 @@ warehouse/
 
 dbt/target/
 dbt/logs/
+dbt/.user.yml

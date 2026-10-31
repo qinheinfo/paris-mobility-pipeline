@@ -1,0 +1,18 @@
+version: 2
+
+models:
+  - name: dim_station
+    description: "One row per Vélib station (reference data)."
+    columns:
+      - name: station_id
+        description: "Unique station identifier."
+        tests:
+          - not_null
+          - unique
+      - name: station_name
+        tests:
+          - not_null
+      - name: capacity
+        description: "Total number of docks."
+        tests:
+          - not_null

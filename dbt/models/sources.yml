@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: velib
+    schema: velib
+    tables:
+      - name: station_status_bronze
+      - name: station_info
