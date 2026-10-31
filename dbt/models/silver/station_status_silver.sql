@@ -1,12 +1,3 @@
-from pyspark.sql import SparkSession
-
-BRONZE_TABLE = "demo.velib.station_status_bronze"
-SILVER_TABLE = "demo.velib.station_status_silver"
-
-BUILD_SILVER_SQL = f"""
-CREATE OR REPLACE TABLE {SILVER_TABLE}
-USING iceberg
-AS
 WITH ordered AS (
     SELECT
         *,
@@ -14,7 +5,7 @@ WITH ordered AS (
         LAG(num_docks_available) OVER w AS prev_docks,
         LAG(is_renting) OVER w AS prev_renting,
         LAG(is_returning) OVER w AS prev_returning
-    FROM {BRONZE_TABLE}
+    FROM {{ source('velib', 'station_status_bronze') }}
     WINDOW w AS (PARTITION BY station_id ORDER BY ingestion_time)
 )
 SELECT
@@ -33,25 +24,3 @@ WHERE prev_bikes IS NULL
    OR num_docks_available != prev_docks
    OR is_renting != prev_renting
    OR is_returning != prev_returning
-"""
-
-
-def main():
-    spark = SparkSession.builder.appName("build_silver").getOrCreate()
-    spark.sparkContext.setLogLevel("WARN")
-
-    spark.sql(BUILD_SILVER_SQL)
-
-    bronze_count = spark.table(BRONZE_TABLE).count()
-    silver_count = spark.table(SILVER_TABLE).count()
-    kept_ratio = silver_count / bronze_count
-
-    print(f"Bronze rows: {bronze_count}")
-    print(f"Silver rows: {silver_count}")
-    print(f"Kept {kept_ratio:.1%} of rows, removed {1 - kept_ratio:.1%} as duplicates")
-
-    spark.stop()
-
-
-if __name__ == "__main__":
-    main()
