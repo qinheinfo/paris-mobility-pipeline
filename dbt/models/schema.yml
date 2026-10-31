@@ -16,3 +16,23 @@ models:
         description: "Total number of docks."
         tests:
           - not_null
+    
+  - name: station_status_silver
+    description: "Station status deduplicated by content: one row per actual state change."
+    columns:
+      - name: station_id
+        tests:
+          - not_null
+      - name: ingested_at
+        tests:
+          - not_null
+
+  - name: mart_station_availability
+    description: "Per-station availability metrics computed from minute-level bronze snapshots."
+    columns:
+      - name: station_id
+        tests:
+          - not_null
+          - unique
+      - name: coverage_pct
+        description: "Share of snapshots in which the station was renting (0-100)."
