@@ -11,6 +11,7 @@ services:
     volumes:
       - ./notebooks:/home/iceberg/notebooks/notebooks
       - ./spark:/home/iceberg/jobs
+      - ./checkpoints:/home/iceberg/checkpoints
     environment:
       - AWS_ACCESS_KEY_ID=admin
       - AWS_SECRET_ACCESS_KEY=password
