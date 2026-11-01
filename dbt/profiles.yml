@@ -4,7 +4,8 @@ velib:
     dev:
       type: spark
       method: thrift
-      host: localhost
+      host: "{{ env_var('DBT_SPARK_HOST', 'localhost') }}"
       port: 10000
       schema: velib
       threads: 1
+      

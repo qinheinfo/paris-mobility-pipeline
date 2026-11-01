@@ -113,5 +113,23 @@ services:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
 
+  airflow:
+    build: ./airflow
+    container_name: airflow
+    command: standalone
+    networks:
+      iceberg_net:
+    depends_on:
+      - spark-iceberg
+    ports:
+      - 8081:8080
+    environment:
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS=True
+      - DBT_SPARK_HOST=spark-iceberg
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./dbt:/opt/airflow/dbt
+
 networks:
   iceberg_net:
