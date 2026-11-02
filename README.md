@@ -151,8 +151,8 @@ Kafka UI is available at http://localhost:8090.
 - [x] Persisted streaming checkpoint and fault-tolerance test
 - [x] Scheduled dbt runs with Airflow
 - [x] Automated Iceberg maintenance (compaction, snapshot expiration)
-- [ ] Persist object storage on the host
-- [ ] Visualisation of the results
+- [x] Persist object storage on the host
+- [x] Visualisation of the results
 
 ## Limitations
 
