@@ -161,3 +161,23 @@ Kafka UI is available at http://localhost:8090.
 - Each producer cycle takes slightly more than 60 seconds, so an hour occasionally contains 59 snapshots instead of 60.
 - Orphan-file cleanup (`remove_orphan_files`) needs a Hadoop S3 filesystem, which this setup does not configure, so the orphan files left by the interrupted maintenance run (~120 MB) remain in storage.
 - The Iceberg REST catalog used here is a test fixture; some metadata-table queries (e.g. `table.files`, `table.snapshots`) are not supported.
+
+## Results
+
+### Data lineage
+
+![dbt lineage graph](docs/images/lineage.png)
+
+Gold metrics are computed from minute-level bronze rather than from silver, because silver keeps only state changes and would bias time-based averages.
+
+### When are stations empty or full?
+
+![Hourly pattern](docs/images/hourly_pattern.png)
+
+Stations run out of bikes during the day (peaking around 09:00 and 15:00) and fill up overnight (peaking around 04:00), consistent with commuting flows. The sample covers only a few days, including a weekend and a public holiday, so this is an early observation.
+
+### Stations most often empty
+
+![Top empty stations](docs/images/top_empty_stations.png)
+
+Only stations in service at least 80% of the time are ranked. Lacépède - Monge never had a bike available while reported as in service, which points to a station or data issue rather than demand.
