@@ -12,6 +12,7 @@ services:
       - ./notebooks:/home/iceberg/notebooks/notebooks
       - ./spark:/home/iceberg/jobs
       - ./checkpoints:/home/iceberg/checkpoints
+      - ./docker/spark-entrypoint.sh:/opt/spark/entrypoint.sh:ro
     environment:
       - AWS_ACCESS_KEY_ID=admin
       - AWS_SECRET_ACCESS_KEY=password
