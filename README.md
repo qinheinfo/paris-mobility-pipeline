@@ -1,6 +1,6 @@
 # Paris Mobility Pipeline
 
-A real-time data pipeline for Paris Vélib' bike-share availability: streaming ingestion with Kafka and Spark Structured Streaming into an Apache Iceberg lakehouse, followed by batch transformations and data-quality tests in dbt.
+A real-time data pipeline for Paris Vélib' bike-share availability: streaming ingestion with Kafka and Spark Structured Streaming into an Apache Iceberg lakehouse, batch transformations and data-quality tests in dbt, and scheduling and table maintenance orchestrated by Apache Airflow.
 
 ## Architecture
 
@@ -20,6 +20,10 @@ Kafka topic: velib.status.raw (3 partitions, keyed by station_id)
 │       │                                  dim_station               │
 │       └──────────► gold: mart_station_availability ◄──┘            │
 └────────────────────────────────────────────────────────────────────┘
+        ▲
+        │  Apache Airflow
+        ├── every 15 min : dbt run → dbt test
+        └── hourly       : Iceberg compaction + snapshot expiration
 ```
 
 ## Tech stack
@@ -31,6 +35,7 @@ Kafka topic: velib.status.raw (3 partitions, keyed by station_id)
 | Stream processing | Spark 3.5 Structured Streaming |
 | Storage | Apache Iceberg (REST catalog, S3-compatible object store) |
 | Transformation & tests | dbt (dbt-spark, Thrift connection) |
+| Orchestration | Apache Airflow 3.3 |
 | Infrastructure | Docker Compose |
 
 ## Data model
@@ -62,11 +67,32 @@ The higher ratio over the longer window is consistent with quiet overnight perio
 Stations out of service are excluded (`is_renting = 1`), but some stations operate only part of the day. In the unfiltered ranking, **6 of the top 10 "most often empty" stations were in service less than 25% of the time**. The gold table therefore exposes `coverage_pct`, and a coverage filter (≥ 80%) surfaces stations that are consistently empty.
 
 ### 4. Fault tolerance
-The streaming job was stopped for about an hour and its container was recreated. After restart, it resumed from the persisted checkpoint: **0 duplicates across 4M rows**, and every snapshot produced during the downtime was recovered from Kafka. A separate 51-minute gap was traced to the producer side (most likely the host machine sleeping): Kafka can only buffer data that reaches it.
+The streaming job was stopped for about an hour and its container was recreated. After restart, it resumed from the persisted checkpoint: **0 duplicates across 4M rows**, and every snapshot produced during the downtime was recovered from Kafka. A later full Docker restart gave the same result (0 duplicates across 6.3M rows). A separate 51-minute gap was traced to the producer side (the host machine sleeping): Kafka can only buffer data that reaches it.
+
+### 5. Small files and memory pressure
+One-minute streaming micro-batches produced **11,925 data files averaging ~10 KB** over a few days. Reading them repeatedly crashed the Spark Thrift Server with out-of-memory errors, which in turn failed the scheduled dbt runs. Three changes fixed it:
+
+- **Compaction**: Iceberg's `rewrite_data_files` merged the 11,925 files into a single 118 MB file, and an hourly job now compacts new files.
+- **Snapshot expiration**: an hourly job removes old table versions, so metadata stays small.
+- **Resource limits**: the Thrift Server was capped at 4 cores and 2 GB (instead of all 14 cores sharing ~1 GB), and Docker's memory was raised from 7.75 GB to 16 GB.
+
+A full dbt refresh (build + 9 tests) went from **~6 minutes, then failing**, to **~11 seconds**.
+
+### 6. Maintenance jobs can fail too
+The first `expire_snapshots` run had to process thousands of accumulated snapshots and crashed halfway: old versions were removed from the metadata, but their data files were not deleted, leaving orphan files in storage. The table itself stayed consistent, because Iceberg commits metadata changes separately from file deletion. Later runs use `stream_results => true` and run hourly, so each run only handles a small batch.
+
+## Orchestration
+
+| DAG | Schedule | Tasks |
+|---|---|---|
+| `velib_dbt_refresh` | Every 15 minutes | `dbt run` → `dbt test` |
+| `velib_iceberg_maintenance` | Hourly, at minute 7 | Compact bronze, expire old snapshots on all tables |
+
+The maintenance job runs at minute 7 so that it does not overlap with a dbt refresh. Both DAGs run dbt inside the Airflow container, which reaches Spark through the Docker network (`spark-iceberg:10000`).
 
 ## Data quality
 
-9 dbt tests run on every build:
+9 dbt tests run on every refresh:
 
 - `not_null` / `unique` on primary keys of `dim_station` and `mart_station_availability`
 - `not_null` on key columns of `station_status_silver`
@@ -77,17 +103,19 @@ The streaming job was stopped for about an hour and its container was recreated.
 ```
 ├── producer/            # Kafka producer polling the Vélib' API
 ├── spark/               # Streaming and batch Spark jobs
-├── dbt/                 # dbt project: sources, models (silver, gold), tests
+├── dbt/                 # dbt project: sources, models, tests, maintenance macro
+├── airflow/             # Airflow image (with dbt) and DAGs
+├── docker/              # Custom entrypoint for the Spark container
 ├── docs/                # Data dictionary and design decisions
-├── docker-compose.yml   # Spark, Iceberg REST catalog, object store, Kafka, Kafka UI
+├── docker-compose.yml   # Spark, Iceberg REST catalog, object store, Kafka, Kafka UI, Airflow
 └── requirements.txt
 ```
 
 ## How to run
 
 ```bash
-# 1. Start the infrastructure
-docker compose up -d
+# 1. Start the infrastructure (Docker needs ~16 GB of memory)
+docker compose up -d --build
 
 # 2. Python environment
 python -m venv .venv
@@ -105,12 +133,13 @@ docker exec -it spark-iceberg spark-submit \
 # 5. Load station reference data
 docker exec -it spark-iceberg spark-submit /home/iceberg/jobs/ingest_station_info.py
 
-# 6. Build and test the dbt models
+# 6. Prepare the catalog for dbt
 docker exec spark-iceberg spark-sql -e "CREATE NAMESPACE IF NOT EXISTS demo.default;"
-cd dbt
-dbt run
-dbt test
+
+# 7. Enable both DAGs in the Airflow UI: http://localhost:8081
 ```
+
+dbt can also be run manually from the host: `cd dbt && dbt run && dbt test`.
 
 Kafka UI is available at http://localhost:8090.
 
@@ -120,8 +149,8 @@ Kafka UI is available at http://localhost:8090.
 - [x] dbt models: silver, dimension, gold
 - [x] dbt tests, including a custom range check
 - [x] Persisted streaming checkpoint and fault-tolerance test
-- [ ] Scheduled dbt runs to keep the gold layer fresh
-- [ ] Iceberg table maintenance (compaction, snapshot expiration)
+- [x] Scheduled dbt runs with Airflow
+- [x] Automated Iceberg maintenance (compaction, snapshot expiration)
 - [ ] Persist object storage on the host
 - [ ] Visualisation of the results
 
@@ -130,3 +159,5 @@ Kafka UI is available at http://localhost:8090.
 - Runs on a single machine: when the host sleeps, the producer stops and no data reaches Kafka.
 - The observation window is a few days, so station rankings are indicative rather than conclusive.
 - Each producer cycle takes slightly more than 60 seconds, so an hour occasionally contains 59 snapshots instead of 60.
+- Orphan-file cleanup (`remove_orphan_files`) needs a Hadoop S3 filesystem, which this setup does not configure, so the orphan files left by the interrupted maintenance run (~120 MB) remain in storage.
+- The Iceberg REST catalog used here is a test fixture; some metadata-table queries (e.g. `table.files`, `table.snapshots`) are not supported.
